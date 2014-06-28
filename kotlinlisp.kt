@@ -31,6 +31,7 @@ fun makeSym(s : String) : Any {
 val sym_t = makeSym("t")
 val sym_quote = makeSym("quote")
 val sym_if = makeSym("if")
+val sym_lambda = makeSym("lambda")
 
 class Error(s : String) {
   val data = s
@@ -70,17 +71,34 @@ fun nreverse(l : Any) : Any {
   var ret : Any = kNil
   while (true) {
     val elm = lst
-    when (elm) {
-      is Cons -> {
-        val tmp = elm.cdr
-        elm.cdr = ret
-        ret = lst
-        lst = tmp
-      }
-      else -> break
+    if (elm is Cons) {
+      val tmp = elm.cdr
+      elm.cdr = ret
+      ret = lst
+      lst = tmp
+    } else {
+      break
     }
   }
   return ret
+}
+
+fun pairlis(l1 : Any, l2 : Any) : Any {
+  var lst1 = l1
+  var lst2 = l2
+  var ret : Any = kNil
+  while (true) {
+    val elm1 = lst1
+    val elm2 = lst2
+    if (elm1 is Cons && elm2 is Cons) {
+      ret = Cons(Cons(elm1.car, elm2.car), ret)
+      lst1 = elm1.cdr
+      lst2 = elm2.cdr
+    } else {
+      break
+    }
+  }
+  return nreverse(ret)
 }
 
 fun makeExpr(a : Any, e : Any) : Any = Expr(safeCar(a), safeCdr(a), e)
@@ -203,24 +221,22 @@ fun findVar(sym : Any, e : Any) : Any {
   var env = e
   while (true) {
     val ev = env
-    when (ev) {
-      is Cons -> {
-        var alist = ev.car
-        while (true) {
-          val al = alist
-          when (al) {
-            is Cons -> {
-              if (safeCar(al.car) == sym) {
-                return al.car
-              }
-              alist = al.cdr
-            }
-            else -> break
+    if (ev is Cons) {
+      var alist = ev.car
+      while (true) {
+        val al = alist
+        if (al is Cons) {
+          if (safeCar(al.car) == sym) {
+            return al.car
           }
+          alist = al.cdr
+        } else {
+          break
         }
-        env = ev.cdr
       }
-      else -> break
+      env = ev.cdr
+    } else {
+      break
     }
   }
   return kNil
@@ -257,6 +273,8 @@ fun eval(obj : Any, env : Any) : Any {
       return eval(safeCar(safeCdr(safeCdr(args))), env)
     }
     return eval(safeCar(safeCdr(args)), env)
+  } else if (op == sym_lambda) {
+    return makeExpr(args, env)
   }
   return apply(eval(op, env), evlis(args, env))
 }
@@ -281,6 +299,21 @@ fun evlis(l : Any, env : Any) : Any {
   return nreverse(ret)
 }
 
+fun progn(b : Any, env : Any) : Any {
+  var body = b
+  var ret : Any = kNil
+  while (true) {
+    val elm = body
+    if (elm is Cons) {
+      ret = eval(elm.car, env)
+      body = elm.cdr
+    } else {
+      break
+    }
+  }
+  return ret
+}
+
 fun apply(fn : Any, args : Any) : Any {
   if (fn is Error) {
     return fn
@@ -288,6 +321,8 @@ fun apply(fn : Any, args : Any) : Any {
     return args
   } else if (fn is Subr) {
     return fn.fn(args)
+  } else if (fn is Expr) {
+    return progn(fn.body, Cons(pairlis(fn.args, args), fn.env))
   }
   return Error(printObj(fn) + " is not function")
 }
