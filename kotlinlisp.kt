@@ -28,6 +28,7 @@ fun makeSym(s : String) : Any {
   sym_table.put(s, new_sym)
   return new_sym
 }
+val sym_t = makeSym("t")
 val sym_quote = makeSym("quote")
 
 class Error(s : String) {
@@ -164,7 +165,7 @@ fun printObj(obj : Any) : String {
     is Nil -> "nil"
     is Num -> obj.data.toString()
     is Sym -> obj.data
-    is Error -> "<error: " + obj + ">"
+    is Error -> "<error: " + obj.data + ">"
     is Cons -> printList(obj)
     is Subr -> "<subr>"
     is Expr -> "<expr>"
@@ -197,13 +198,62 @@ fun printList(o : Any) : String {
   return "(" + ret + " . " + printObj(obj) + ")"
 }
 
+fun findVar(sym : Any, e : Any) : Any {
+  var env = e
+  while (true) {
+    val ev = env
+    when (ev) {
+      is Cons -> {
+        var alist = ev.car
+        while (true) {
+          val al = alist
+          when (al) {
+            is Cons -> {
+              if (safeCar(al.car) == sym) {
+                return al.car
+              }
+              alist = al.cdr
+            }
+            else -> break
+          }
+        }
+        env = ev.cdr
+      }
+      else -> break
+    }
+  }
+  return kNil
+}
+
+var g_env = Cons(kNil, kNil)
+
+fun addToEnv(sym : Any, value : Any, env : Any) {
+  if (env is Cons) {
+    env.car = Cons(Cons(sym, value), env.car)
+  }
+}
+
+fun eval(obj : Any, env : Any) : Any {
+  if (obj is Nil || obj is Num || obj is Error) {
+    return obj
+  } else if (obj is Sym) {
+    val bind = findVar(obj, env)
+    if (bind is Cons) {
+      return bind.cdr
+    }
+    return Error(obj.data + " has no value")
+  }
+  return Error("noimpl")
+}
+
 fun main(args: Array<String>): Unit {
+  addToEnv(sym_t, sym_t, g_env)
   while(true) {
     print("> ")
     val line = readLine()
     if (line == null) {
       break
     }
-    println(printObj(read(line).obj))
+    println(printObj(eval(read(line).obj, g_env)))
   }
 }
