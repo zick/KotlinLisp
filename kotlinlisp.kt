@@ -28,6 +28,7 @@ fun makeSym(s : String) : Any {
   sym_table.put(s, new_sym)
   return new_sym
 }
+val sym_quote = makeSym("quote")
 
 class Error(s : String) {
   val data = s
@@ -60,6 +61,24 @@ fun safeCdr(obj : Any) : Any {
     is Cons -> obj.cdr
     else -> kNil
   }
+}
+
+fun nreverse(l : Any) : Any {
+  var lst = l
+  var ret : Any = kNil
+  while (true) {
+    val elm = lst
+    when (elm) {
+      is Cons -> {
+        val tmp = elm.cdr
+        elm.cdr = ret
+        ret = lst
+        lst = tmp
+      }
+      else -> break
+    }
+  }
+  return ret
 }
 
 fun makeExpr(a : Any, e : Any) : Any = Expr(safeCar(a), safeCdr(a), e)
@@ -112,11 +131,70 @@ fun read(s : String) : ParseState {
   } else if (str[0] == kRPar) {
     return parseError("invalid syntax: " + str);
   } else if (str[0] == kLPar) {
-    return parseError("noimpl")
+    return readList(str.substring(1))
   } else if (str[0] == kQuote) {
-    return parseError("noimpl")
+    val tmp = read(str.substring(1))
+    return ParseState(Cons(sym_quote, Cons(tmp.obj, kNil)), tmp.next)
   }
   return readAtom(str)
+}
+
+fun readList(s : String) : ParseState {
+  var str = s
+  var ret : Any = kNil
+  while (true) {
+    str = skipSpaces(str)
+    if (str == "") {
+      parseError("unfinished parenthesis")
+    } else if (str[0] == kRPar) {
+      break
+    }
+    val tmp = read(str)
+    if (tmp.obj is Error) {
+      return tmp
+    }
+    ret = Cons(tmp.obj, ret)
+    str = tmp.next
+  }
+  return ParseState(nreverse(ret), str.substring(1))
+}
+
+fun printObj(obj : Any) : String {
+  return when (obj) {
+    is Nil -> "nil"
+    is Num -> obj.data.toString()
+    is Sym -> obj.data
+    is Error -> "<error: " + obj + ">"
+    is Cons -> printList(obj)
+    is Subr -> "<subr>"
+    is Expr -> "<expr>"
+    else -> "<unknown>"
+  }
+}
+
+fun printList(o : Any) : String {
+  var obj = o
+  var ret = ""
+  var first = true
+  while (true) {
+    val elm = obj
+    when (elm) {
+      is Cons -> {
+        if (first) {
+          first = false
+        } else {
+          ret += " "
+        }
+        ret += printObj(elm.car)
+        obj = elm.cdr
+      }
+      else -> break
+    }
+  }
+  if (obj is Nil) {
+    return "(" + ret + ")"
+  }
+  return "(" + ret + " . " + printObj(obj) + ")"
 }
 
 fun main(args: Array<String>): Unit {
@@ -126,6 +204,6 @@ fun main(args: Array<String>): Unit {
     if (line == null) {
       break
     }
-    println(read(line).obj)
+    println(printObj(read(line).obj))
   }
 }
