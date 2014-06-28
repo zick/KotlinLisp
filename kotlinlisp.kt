@@ -8,7 +8,7 @@ class Nil {
 }
 val kNil = Nil()
 
-class Num(n : Number) {
+class Num(n : Int) {
   val data = n
 }
 
@@ -356,10 +356,93 @@ val subrCons = {(args : Any) : Any ->
   Cons(safeCar(args), safeCar(safeCdr(args)))
 }
 
+fun subrEqImpl(args : Any) : Any {
+  val x = safeCar(args)
+  val y = safeCar(safeCdr(args))
+  if (x is Num && y is Num) {
+    if (x.data == y.data) {
+      return sym_t
+    }
+   return kNil
+  } else if (x == y) {
+    return sym_t
+  }
+  return kNil
+}
+val subrEq = {(args : Any) : Any -> subrEqImpl(args)}
+
+val subrAtom = {(args : Any) : Any ->
+  if (safeCar(args) is Cons) kNil
+  else sym_t
+}
+
+val subrNumberp = {(args : Any) : Any ->
+  if (safeCar(args) is Num) sym_t
+  else kNil
+}
+
+val subrSymbolp = {(args : Any) : Any ->
+  if (safeCar(args) is Sym) sym_t
+  else kNil
+}
+
+fun subrAddOrMul(fn : (Int, Int) -> Int, init_val : Int, a : Any) : Any {
+  var args = a
+  var ret = init_val
+  while (true) {
+    val elm = args
+    if (elm is Cons) {
+      val num = elm.car
+      if (num is Num) {
+        ret = fn(ret, num.data)
+        args = elm.cdr
+      } else {
+        return Error("wrong type")
+      }
+    } else {
+      break
+    }
+  }
+  return Num(ret)
+}
+val subrAdd = {(args : Any) : Any ->
+  subrAddOrMul({(x : Int, y : Int) : Int -> x + y}, 0, args)
+}
+val subrMul = {(args : Any) : Any ->
+  subrAddOrMul({(x : Int, y : Int) : Int -> x * y}, 1, args)
+}
+
+fun subrSubOrDivOrMod(fn : (Int, Int) -> Int, args : Any) : Any {
+  val x = safeCar(args)
+  val y = safeCar(safeCdr(args))
+  if (x is Num && y is Num) {
+    return Num(fn(x.data, y.data))
+  }
+  return Error("wrong type")
+}
+val subrSub = {(args : Any) : Any ->
+  subrSubOrDivOrMod({(x : Int, y : Int) : Int -> x - y}, args)
+}
+val subrDiv = {(args : Any) : Any ->
+  subrSubOrDivOrMod({(x : Int, y : Int) : Int -> x / y}, args)
+}
+val subrMod = {(args : Any) : Any ->
+  subrSubOrDivOrMod({(x : Int, y : Int) : Int -> x % y}, args)
+}
+
 fun main(args: Array<String>): Unit {
   addToEnv(makeSym("car"), Subr(subrCar), g_env)
   addToEnv(makeSym("cdr"), Subr(subrCdr), g_env)
   addToEnv(makeSym("cons"), Subr(subrCons), g_env)
+  addToEnv(makeSym("eq"), Subr(subrEq), g_env)
+  addToEnv(makeSym("atom"), Subr(subrAtom), g_env)
+  addToEnv(makeSym("numberp"), Subr(subrNumberp), g_env)
+  addToEnv(makeSym("symbolp"), Subr(subrSymbolp), g_env)
+  addToEnv(makeSym("+"), Subr(subrAdd), g_env)
+  addToEnv(makeSym("*"), Subr(subrMul), g_env)
+  addToEnv(makeSym("-"), Subr(subrSub), g_env)
+  addToEnv(makeSym("/"), Subr(subrDiv), g_env)
+  addToEnv(makeSym("mod"), Subr(subrMod), g_env)
   addToEnv(sym_t, sym_t, g_env)
   while(true) {
     print("> ")
