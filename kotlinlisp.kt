@@ -33,6 +33,7 @@ val sym_quote = makeSym("quote")
 val sym_if = makeSym("if")
 val sym_lambda = makeSym("lambda")
 val sym_defun = makeSym("defun")
+val sym_setq = makeSym("setq")
 
 class Error(s : String) {
   val data = s
@@ -281,6 +282,16 @@ fun eval(obj : Any, env : Any) : Any {
     val sym = safeCar(args)
     addToEnv(sym, expr, g_env)
     return sym
+  } else if (op == sym_setq) {
+    val value = eval(safeCar(safeCdr(args)), env)
+    val sym = safeCar(args)
+    val bind = findVar(sym, env)
+    if (bind is Cons) {
+      bind.cdr = value
+    } else {
+      addToEnv(sym, value, g_env)
+    }
+    return value
   }
   return apply(eval(op, env), evlis(args, env))
 }
