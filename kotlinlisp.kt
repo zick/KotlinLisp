@@ -30,6 +30,7 @@ fun makeSym(s : String) : Any {
 }
 val sym_t = makeSym("t")
 val sym_quote = makeSym("quote")
+val sym_if = makeSym("if")
 
 class Error(s : String) {
   val data = s
@@ -243,10 +244,70 @@ fun eval(obj : Any, env : Any) : Any {
     }
     return Error(obj.data + " has no value")
   }
-  return Error("noimpl")
+
+  val op = safeCar(obj)
+  val args = safeCdr(obj)
+  if (op == sym_quote) {
+    return safeCar(args)
+  } else if (op == sym_if) {
+    val c = eval(safeCar(args), env)
+    if (c is Error) {
+      return c
+    } else if (c == kNil) {
+      return eval(safeCar(safeCdr(safeCdr(args))), env)
+    }
+    return eval(safeCar(safeCdr(args)), env)
+  }
+  return apply(eval(op, env), evlis(args, env))
+}
+
+fun evlis(l : Any, env : Any) : Any {
+  var lst = l
+  var ret : Any = kNil
+  while (true) {
+    val elm = lst
+    when (elm) {
+      is Cons -> {
+        val obj = eval(elm.car, env)
+        if (obj is Error) {
+          return obj
+        }
+        ret = Cons(obj, ret)
+        lst = elm.cdr
+      }
+      else -> break
+    }
+  }
+  return nreverse(ret)
+}
+
+fun apply(fn : Any, args : Any) : Any {
+  if (fn is Error) {
+    return fn
+  } else if (args is Error) {
+    return args
+  } else if (fn is Subr) {
+    return fn.fn(args)
+  }
+  return Error(printObj(fn) + " is not function")
+}
+
+val subrCar = {(args : Any) : Any ->
+  safeCar(safeCar(args))
+}
+
+val subrCdr = {(args : Any) : Any ->
+  safeCdr(safeCar(args))
+}
+
+val subrCons = {(args : Any) : Any ->
+  Cons(safeCar(args), safeCar(safeCdr(args)))
 }
 
 fun main(args: Array<String>): Unit {
+  addToEnv(makeSym("car"), Subr(subrCar), g_env)
+  addToEnv(makeSym("cdr"), Subr(subrCdr), g_env)
+  addToEnv(makeSym("cons"), Subr(subrCons), g_env)
   addToEnv(sym_t, sym_t, g_env)
   while(true) {
     print("> ")
